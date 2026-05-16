@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security — CertChain Blockchain System</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://unpkg.com/ethers@5.7.2/dist/ethers.umd.min.js" type="application/javascript"></script>
+    <script>(function () { document.documentElement.setAttribute('data-theme', localStorage.getItem('certchain_theme') || 'dark'); })();</script>
+</head>
+
+<body>
+
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="logo">🔗 CertChain</div>
+            <ul class="nav-links">
+                <li><a href="index.html">🏠 Home</a></li>
+                <li><a href="dashboard.html">📊 Explorer</a></li>
+                <li><a href="issue.html">📜 Issue</a></li>
+                <li><a href="verify.html">✅ Verify</a></li>
+                <li><a href="security.html" class="active">🔒 Security</a></li>
+            </ul>
+            <div style="display:flex;align-items:center;gap:0.5rem;">
+                <button class="wallet-btn" id="walletBtn" onclick="handleWalletConnect()">
+                    <span class="wallet-dot"></span>
+                    <span id="walletBtnText">Connect Wallet</span>
+                </button>
+                <button class="theme-toggle" id="themeToggleBtn" onclick="toggleTheme()"
+                    title="Toggle theme">🌙</button>
+                <button onclick="openSettings()" title="Setup contract address"
+                    style="padding:0.4rem 0.6rem;border-radius:0.5rem;border:1px solid var(--border);background:rgba(245,158,11,0.08);color:#fbbf24;cursor:pointer;font-size:0.85rem;transition:all 0.2s;">⚙️</button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container">
+        <div class="page-header">
+            <h1>🔒 Blockchain Security</h1>
+            <p>Understanding why blockchain makes academic certificate forgery mathematically impossible</p>
+        </div>
+
+        <!-- Security Concept Cards -->
+        <div class="security-grid">
+            <div class="security-card">
+                <div class="sc-icon">🔐</div>
+                <h3>SHA-256 Cryptographic Hashing</h3>
+                <p>
+                    SHA-256 is a one-way cryptographic function producing a deterministic 256-bit (64 hex char) output.
+                    The <strong>avalanche effect</strong> means even a 1-character change in input produces a completely
+                    different hash. It is computationally infeasible to find two inputs that produce the same hash
+                    (collision resistance), ensuring certificate fingerprints are unique and unforgeable.
+                </p>
+            </div>
+            <div class="security-card">
+                <div class="sc-icon">🔗</div>
+                <h3>How Immutability Works</h3>
+                <p>
+                    Every block stores the SHA-256 hash of the previous block. If you alter any data in Block N, its
+                    hash changes. This makes Block N+1's <code>previousHash</code> field wrong. Which changes Block
+                    N+1's hash. Which breaks Block N+2. And so on. <strong>One modification invalidates the entire
+                        subsequent chain</strong> — detectable in milliseconds.
+                </p>
+            </div>
+            <div class="security-card">
+                <div class="sc-icon">🚫</div>
+                <h3>What Happens When Data Is Modified</h3>
+                <p>
+                    If an attacker changes even a single character of a certificate (e.g., grade from C to A): (1) The
+                    certificate's SHA-256 hash no longer matches the stored <code>certHash</code>. (2) The block's hash
+                    changes, breaking the chain linkage. (3) All four verification stages fail with an exact error
+                    message identifying the tampered block.
+                </p>
+            </div>
+            <div class="security-card">
+                <div class="sc-icon">⛏️</div>
+                <h3>Why Proof-of-Work Is Used</h3>
+                <p>
+                    Without PoW, an attacker could instantly re-mine all blocks after modifying a certificate. PoW
+                    requires finding a nonce such that the block's hash starts with N leading zeros — requiring
+                    ~16<sup>N</sup> hash computations on average. This makes retroactive chain rewriting computationally
+                    expensive and time-consuming, serving as a deterrent against forgery.
+                </p>
+            </div>
+            <div class="security-card">
+                <div class="sc-icon">🌐</div>
+                <h3>Ethereum Decentralization</h3>
+                <p>
+                    CertChain now runs on the real <strong>Ethereum Sepolia</strong> blockchain — secured by thousands
+                    of globally distributed Proof-of-Stake validators. An attacker would need to control &gt;33% of all
+                    staked ETH to manipulate the chain. Every certificate is backed by an immutable on-chain transaction
+                    verifiable at <a href="https://sepolia.etherscan.io" target="_blank"
+                        style="color:var(--blue-400)">sepolia.etherscan.io</a>.
+                </p>
+            </div>
+            <div class="security-card">
+                <div class="sc-icon">🛡️</div>
+                <h3>Non-Repudiation</h3>
+                <p>
+                    Once a certificate is mined into the blockchain, the issuing institution cannot deny its issuance —
+                    the block with the exact timestamp, certificate data, and block hash is permanently recorded.
+                    Conversely, a certificate that does not appear on the chain cannot be claimed as genuine — providing
+                    mathematical proof of both existence and non-existence.
+                </p>
+            </div>
+        </div>
+
+        <!-- Live SHA-256 Demonstration -->
+        <div class="tamper-demo-section">
+            <h2>🔬 Live SHA-256 Avalanche Effect Demo</h2>
+            <p>Type in the input field below and observe how even the smallest change produces a completely different
+                SHA-256 hash — the "avalanche effect" that makes blockchain data tamper-evident.</p>
+            <div class="tamper-layout">
+                <div class="tamper-box">
+                    <div class="tamper-box-title">📝 Input Data</div>
+                    <textarea class="data-input" id="hashInput" rows="4" placeholder="Type certificate data here…">Student: Alice Johnson
+Grade: A+
+Institution: IIT Delhi
+Year: 2026</textarea>
+                    <div class="bf-label" style="margin-top:0.5rem;margin-bottom:0.35rem;">SHA-256 HASH OUTPUT</div>
+                    <div class="hash-display neutral" id="hashOutput">Start typing to see the hash…</div>
+                </div>
+                <div class="tamper-box">
+                    <div class="tamper-box-title">🚨 Tampered Data (Grade changed to B)</div>
+                    <div style="background:var(--bg-deep);border:1px solid var(--border);border-radius:0.4rem;padding:0.6rem 0.8rem;font-family:var(--mono);font-size:0.85rem;color:var(--text-secondary);margin-bottom:0.75rem;white-space:pre;line-height:1.5;"
+                        id="tamperedPreview">Student: Alice Johnson
+                        Grade: <span id="tamperedGrade" style="color:var(--red-400);font-weight:700">B</span>
+                        Institution: IIT Delhi
+                        Year: 2026</div>
+                    <div class="bf-label" style="margin-bottom:0.35rem;">SHA-256 HASH (after tampering)</div>
+                    <div class="hash-display tampered" id="tamperedHashOutput">—</div>
+                    <div style="margin-top:0.75rem;font-size:0.8rem;color:var(--red-400);font-weight:600;"
+                        id="hashDiffNote"></div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <footer class="footer">
+        <p>🔗 <strong>CertChain</strong> — Blockchain-Based Secure Academic Certificate Verification System © 2026</p>
+    </footer>
+
+    <script src="blockchain-real.js"></script>
+    <script>
+        function toggleTheme() {
+            const html = document.documentElement;
+            const isDark = html.getAttribute('data-theme') !== 'light';
+            html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+            localStorage.setItem('certchain_theme', isDark ? 'light' : 'dark');
+            document.getElementById('themeToggleBtn').textContent = isDark ? '☀️' : '🌙';
+        }
+        window.addEventListener('DOMContentLoaded', () => {
+            const saved = localStorage.getItem('certchain_theme') || 'dark';
+            document.getElementById('themeToggleBtn').textContent = saved === 'light' ? '☀️' : '🌙';
+        });
+    </script>
+    <script>
+        // ── Wallet connect ──────────────────────────────────────────
+        async function handleWalletConnect() {
+            try {
+                const account = await connectWallet();
+                const btn = document.getElementById('walletBtn');
+                btn.style.borderColor = '#22c55e';
+                btn.style.background = 'rgba(34,197,94,0.1)';
+                btn.style.color = '#4ade80';
+                document.getElementById('walletBtnText').textContent = account.substring(0, 6) + '…' + account.substring(38);
+            } catch (err) { alert('❌ ' + err.message); }
+        }
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            const saved = localStorage.getItem('certchain_theme') || 'dark';
+            document.getElementById('themeToggleBtn').textContent = saved === 'light' ? '☀️' : '🌙';
+            const account = await getConnectedAccount();
+            if (account) {
+                const btn = document.getElementById('walletBtn');
+                btn.style.borderColor = '#22c55e';
+                btn.style.background = 'rgba(34,197,94,0.1)';
+                btn.style.color = '#4ade80';
+                document.getElementById('walletBtnText').textContent = account.substring(0, 6) + '…' + account.substring(38);
+            }
+        });
+
+        // ── Live SHA-256 hash demonstration ────────────────────────
+        const hashInput = document.getElementById('hashInput');
+
+        async function updateHashes() {
+            const text = hashInput.value;
+            const h1 = await sha256(text);
+            document.getElementById('hashOutput').textContent = h1;
+
+            const tamperedText = text.replace('A+', 'B').replace('A', 'B');
+            const h2 = await sha256(tamperedText);
+            document.getElementById('tamperedHashOutput').textContent = h2;
+
+            if (text !== tamperedText) {
+                const diffCount = [...h1].filter((c, i) => c !== h2[i]).length;
+                document.getElementById('hashDiffNote').textContent =
+                    `⚠️ ${diffCount} of 64 hex characters changed — Avalanche Effect!`;
+            } else {
+                document.getElementById('hashDiffNote').textContent = '';
+            }
+        }
+
+        hashInput.addEventListener('input', updateHashes);
+        updateHashes();
+
+        // ── Tamper Detection Demo (pure SHA-256, no chain API) ──────
+        // We simulate a realistic certificate JSON, hash it,
+        // then show what happens when the grade is tampered.
+        const SAMPLE_CERT = {
+            certificateId: 'CERT-DEMO-EXAMPLE',
+            type: 'CERTIFICATE',
+            studentName: 'Arjun Sharma',
+            studentId: 'STU-2024-001',
+            institution: 'IIT Delhi',
+            degree: 'Bachelor of Technology',
+            fieldOfStudy: 'Computer Science',
+            issueDate: '2026-03-01',
+            gpa: '9.2 / 10',
+            honors: 'First Class with Distinction',
+            issuerName: 'Prof. Rajesh Kumar',
+            issuerTitle: 'Registrar, IIT Delhi',
+            issuedTimestamp: '2026-03-01T10:00:00.000Z'
+        };
+
+        let originalCertHash = null;
+
+        function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+        function logLine(text, color = 'var(--text-secondary)') {
+            const log = document.getElementById('tamperLog');
+            log.innerHTML += (log.innerHTML && !log.innerHTML.endsWith('\n') ? '\n' : '') +
+                `<span style="color:${color}">${text}</span>`;
+        }
+
+        async function simulateTamperHash() {
+            const log = document.getElementById('tamperLog');
+            const result = document.getElementById('tamperDemoResult');
+            const compareDiv = document.getElementById('tamperHashCompare');
+            log.innerHTML = '';
+            result.style.display = 'none';
+            compareDiv.style.display = 'none';
+
+            logLine(`🎯 Target: Certificate "${SAMPLE_CERT.certificateId}"`, 'var(--cyan-400)');
+            await delay(400);
+            logLine(`📜 Student: ${SAMPLE_CERT.studentName} | Institution: ${SAMPLE_CERT.institution}`);
+            await delay(300);
+            logLine(`📊 Stored Grade: ${SAMPLE_CERT.gpa}`);
+            await delay(300);
+
+            // Compute original hash (what's stored on Ethereum)
+            const { certHash: _, ...certBody } = SAMPLE_CERT; // exclude certHash if present
+            originalCertHash = await sha256(JSON.stringify(SAMPLE_CERT));
+            logLine(`🔐 On-chain SHA-256: ${originalCertHash.substring(0, 32)}…`, '#4ade80');
+            await delay(500);
+
+            logLine(`\n💀 ATTACK: Modifying grade from "${SAMPLE_CERT.gpa}" to "10.0 / 10 (FORGED)"`, '#f87171');
+            await delay(400);
+
+            // Build tampered cert
+            const tamperedCert = { ...SAMPLE_CERT, gpa: '10.0 / 10 (FORGED)', honors: 'Gold Medallist (FORGED)' };
+            const tamperedHash = await sha256(JSON.stringify(tamperedCert));
+            logLine(`🔴 Tampered SHA-256: ${tamperedHash.substring(0, 32)}…`, '#f87171');
+            await delay(400);
+
+            logLine(`\n🔍 Verification: Comparing hashes…`);
+            await delay(300);
+            logLine(`   On-chain (stored) : ${originalCertHash.substring(0, 32)}…`, '#4ade80');
+            logLine(`   Recomputed        : ${tamperedHash.substring(0, 32)}…`, '#f87171');
+            await delay(400);
+            logLine(`\n❌ TAMPER DETECTED — Hashes do NOT match!`, '#f87171');
+            logLine(`   The modified grade produced a completely different SHA-256.`, '#f87171');
+            logLine(`   Smart contract verification will REJECT this certificate.`, '#f87171');
+
+            // Show comparison cards
+            document.getElementById('originalHashDisplay').textContent = originalCertHash;
+            document.getElementById('tamperedHashDisplay').textContent = tamperedHash;
+            compareDiv.style.display = 'grid';
+
+            result.style.display = 'block';
+            result.innerHTML = `
+            <div class="integrity-result error">
+                ❌ <strong>Tamper Detected!</strong> — The forged grade changed ${[...originalCertHash].filter((c, i) => c !== tamperedHash[i]).length} of 64 hash characters.
+                Any attempt to submit this certificate would immediately fail on-chain hash verification.
+            </div>`;
+        }
+
+        function resetTamperDemo() {
+            document.getElementById('tamperLog').innerHTML = 'Click "Simulate Tamper Attack" to begin…';
+            document.getElementById('tamperDemoResult').style.display = 'none';
+            document.getElementById('tamperHashCompare').style.display = 'none';
+            originalCertHash = null;
+        }
+    </script>
+</body>
+
+</html>

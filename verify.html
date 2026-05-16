@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Certificate — CertChain Blockchain</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://unpkg.com/ethers@5.7.2/dist/ethers.umd.min.js" type="application/javascript"></script>
+    <script>(function () { document.documentElement.setAttribute('data-theme', localStorage.getItem('certchain_theme') || 'dark'); })();</script>
+    <style>
+        .wallet-btn {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.4rem 0.9rem;
+            border-radius: 9999px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1.5px solid var(--blue-500);
+            background: rgba(59, 130, 246, 0.1);
+            color: var(--blue-400);
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .wallet-btn:hover {
+            background: rgba(59, 130, 246, 0.2);
+        }
+
+        .wallet-btn.connected {
+            border-color: #22c55e;
+            background: rgba(34, 197, 94, 0.1);
+            color: #4ade80;
+        }
+
+        .wallet-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--blue-400);
+            animation: pulse 2s infinite;
+        }
+
+        .wallet-btn.connected .wallet-dot {
+            background: #4ade80;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1
+            }
+
+            50% {
+                opacity: 0.4
+            }
+        }
+
+        .etherscan-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            color: var(--blue-400);
+            font-size: 0.8rem;
+            text-decoration: none;
+            padding: 0.3rem 0.6rem;
+            border-radius: 0.4rem;
+            background: rgba(59, 130, 246, 0.08);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            transition: all 0.2s;
+        }
+
+        .etherscan-link:hover {
+            background: rgba(59, 130, 246, 0.18);
+        }
+
+        .on-chain-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            background: rgba(168, 85, 247, 0.1);
+            color: #c084fc;
+            border: 1px solid rgba(168, 85, 247, 0.3);
+            border-radius: 9999px;
+            padding: 0.2rem 0.6rem;
+            font-size: 0.72rem;
+            font-weight: 600;
+        }
+
+        .read-only-note {
+            background: rgba(34, 197, 94, 0.08);
+            border: 1px solid rgba(34, 197, 94, 0.2);
+            border-radius: 0.5rem;
+            padding: 0.6rem 1rem;
+            font-size: 0.82rem;
+            color: #4ade80;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+
+<body>
+
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="logo">🔗 CertChain</div>
+            <ul class="nav-links">
+                <li><a href="index.html">🏠 Home</a></li>
+                <li><a href="dashboard.html">📊 Explorer</a></li>
+                <li><a href="issue.html">📜 Issue</a></li>
+                <li><a href="verify.html" class="active">✅ Verify</a></li>
+                <li><a href="security.html">🔒 Security</a></li>
+            </ul>
+            <div style="display:flex;align-items:center;gap:0.5rem;">
+                <button class="wallet-btn" id="walletBtn" onclick="handleWalletConnect()">
+                    <span class="wallet-dot"></span>
+                    <span id="walletBtnText">Connect Wallet</span>
+                </button>
+                <button class="theme-toggle" id="themeToggleBtn" onclick="toggleTheme()"
+                    title="Toggle theme">🌙</button>
+                <button onclick="openSettings()" title="Setup contract address"
+                    style="padding:0.4rem 0.6rem;border-radius:0.5rem;border:1px solid var(--border);background:rgba(245,158,11,0.08);color:#fbbf24;cursor:pointer;font-size:0.85rem;transition:all 0.2s;">⚙️</button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container">
+        <div class="page-header">
+            <h1>Verify Certificate</h1>
+            <p>4-stage on-chain verification: existence on Ethereum → hash integrity → issuer validity → network check
+            </p>
+        </div>
+
+        <div class="verify-layout">
+
+            <!-- Certificate ID Input -->
+            <div class="verify-input-card">
+                <h3>🔍 Enter Certificate ID</h3>
+                <div class="read-only-note">
+                    ✅ Verification is <strong>free</strong> — no MetaMask or gas required. Data is read directly from
+                    the Ethereum blockchain.
+                </div>
+                <div class="verify-input-group">
+                    <input type="text" id="certIdInput" class="verify-input" placeholder="e.g. CERT-MM05WIYH-CQVN2S"
+                        autocomplete="off" spellcheck="false">
+                    <button class="btn btn-primary" id="verifyBtn" onclick="startVerification()">Verify</button>
+                </div>
+                <p class="hint">💡 Certificate IDs start with <code
+                        style="color:var(--cyan-400);background:rgba(6,182,212,0.1);padding:0.1rem 0.4rem;border-radius:0.25rem">CERT-</code>.
+                    Copy it from the issuance page or dashboard.</p>
+            </div>
+
+            <!-- Verification Pipeline -->
+            <div class="verify-input-card" id="verifyStepsCard" style="display:none;">
+                <h3>🔐 Verification Pipeline <span class="on-chain-badge">🟣 Ethereum Sepolia</span></h3>
+                <div class="verification-steps">
+                    <div class="vstep pending" id="vstep1">
+                        <div class="vstep-icon">📋</div>
+                        <div class="vstep-content">
+                            <div class="vstep-title">Step 1 — Certificate Existence on Ethereum</div>
+                            <div class="vstep-desc">Querying smart contract on Sepolia blockchain</div>
+                        </div>
+                    </div>
+                    <div class="vstep pending" id="vstep2">
+                        <div class="vstep-icon">🔐</div>
+                        <div class="vstep-content">
+                            <div class="vstep-title">Step 2 — Certificate Hash Integrity</div>
+                            <div class="vstep-desc">Recomputing SHA-256 hash and comparing with on-chain hash</div>
+                        </div>
+                    </div>
+                    <div class="vstep pending" id="vstep3">
+                        <div class="vstep-icon">🦊</div>
+                        <div class="vstep-content">
+                            <div class="vstep-title">Step 3 — Ethereum Issuer Validity</div>
+                            <div class="vstep-desc">Verifying the issuer's Ethereum wallet address on-chain</div>
+                        </div>
+                    </div>
+                    <div class="vstep pending" id="vstep4">
+                        <div class="vstep-icon">⛓️</div>
+                        <div class="vstep-content">
+                            <div class="vstep-title">Step 4 — Network Validation</div>
+                            <div class="vstep-desc">Confirming certificate is on the correct Ethereum network</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Verification Result -->
+            <div id="verifyResult" style="display:none;"></div>
+
+            <!-- Document File Verification -->
+            <div class="file-verify-card" id="fileVerifyCard" style="display:none;">
+                <h3 style="font-size:1rem;font-weight:700;margin-bottom:0.5rem;">📁 Verify Certificate Document
+                    (Optional)</h3>
+                <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:1rem;">
+                    This certificate has a document fingerprint stored on-chain. Upload the original certificate file to
+                    verify it hasn't been altered since issuance.
+                </p>
+                <div
+                    style="background:var(--bg-dark);border:1px solid var(--border);border-radius:var(--radius);padding:0.75rem 1rem;margin-bottom:1rem;">
+                    <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.3rem;">On-chain file
+                        fingerprint (SHA-256):</div>
+                    <code id="storedFileHash"
+                        style="font-size:0.7rem;color:var(--cyan-400);word-break:break-all;font-family:var(--mono);">—</code>
+                </div>
+                <div class="file-upload-zone" id="verifyFileZone">
+                    <input type="file" id="verifyFileInput" onchange="verifyFile(this.files[0])">
+                    <div class="file-upload-icon">📄</div>
+                    <div class="file-upload-label">
+                        <strong>Upload the original certificate file</strong><br>
+                        <span style="font-size:0.78rem;color:var(--text-muted)">We compute its SHA-256 and compare with
+                            the on-chain hash</span>
+                    </div>
+                </div>
+                <div id="fileVerifyResult" style="display:none;"></div>
+            </div>
+
+
+        </div>
+    </main>
+
+    <footer class="footer">
+        <p>🔗 <strong>CertChain</strong> — Real Ethereum Blockchain Academic Certificate Verification System © 2026</p>
+    </footer>
+
+    <script src="blockchain-real.js"></script>
+    <script>
+        function toggleTheme() {
+            const html = document.documentElement;
+            const isDark = html.getAttribute('data-theme') !== 'light';
+            html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+            localStorage.setItem('certchain_theme', isDark ? 'light' : 'dark');
+            document.getElementById('themeToggleBtn').textContent = isDark ? '☀️' : '🌙';
+        }
+
+        let currentReport = null;
+
+        async function handleWalletConnect() {
+            try {
+                const account = await connectWallet();
+                document.getElementById('walletBtn').classList.add('connected');
+                document.getElementById('walletBtnText').textContent = account.substring(0, 6) + '…' + account.substring(38);
+            } catch (err) { alert('❌ ' + err.message); }
+        }
+
+        async function init() {
+            const saved = localStorage.getItem('certchain_theme') || 'dark';
+            document.getElementById('themeToggleBtn').textContent = saved === 'light' ? '☀️' : '🌙';
+
+            const account = await getConnectedAccount();
+            if (account) {
+                document.getElementById('walletBtn').classList.add('connected');
+                document.getElementById('walletBtnText').textContent = account.substring(0, 6) + '…' + account.substring(38);
+            }
+
+            const params = new URLSearchParams(window.location.search);
+            const id = params.get('id');
+            if (id) {
+                document.getElementById('certIdInput').value = id;
+                startVerification();
+            }
+        }
+
+        function setStepState(stepId, state, desc = null) {
+            const el = document.getElementById(stepId);
+            el.classList.remove('pending', 'pass', 'fail');
+            el.classList.add(state);
+            if (state === 'pass') el.querySelector('.vstep-icon').textContent = '✅';
+            if (state === 'fail') el.querySelector('.vstep-icon').textContent = '❌';
+            if (desc) el.querySelector('.vstep-desc').textContent = desc;
+        }
+
+        function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+        async function startVerification() {
+            const certId = document.getElementById('certIdInput').value.trim();
+            if (!certId) { alert('Please enter a Certificate ID.'); return; }
+
+            ['vstep1', 'vstep2', 'vstep3', 'vstep4'].forEach(s => setStepState(s, 'pending'));
+            document.getElementById('verifyStepsCard').style.display = 'block';
+            document.getElementById('verifyResult').style.display = 'none';
+            document.getElementById('fileVerifyCard').style.display = 'none';
+
+            const btn = document.getElementById('verifyBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Querying Ethereum…';
+
+            try {
+                // Run verification against real blockchain
+                currentReport = await verifyCertificateOnChain(certId);
+
+                await delay(200);
+                const modeName = currentReport.mode === 'ethereum' ? 'Ethereum' : 'Local Storage';
+                if (currentReport.checks.exists) {
+                    setStepState('vstep1', 'pass', `Found on ${modeName} — issued ${new Date(currentReport.blockTimestamp).toLocaleString()}`);
+                } else {
+                    setStepState('vstep1', 'fail', `Certificate ID not found on ${modeName}`);
+                    showResult(currentReport);
+                    btn.disabled = false; btn.textContent = 'Verify';
+                    return;
+                }
+
+                await delay(300);
+                if (currentReport.checks.certHashValid) {
+                    setStepState('vstep2', 'pass', 'SHA-256 hash matches on-chain record — data unmodified ✅');
+                } else {
+                    setStepState('vstep2', 'fail', 'Hash mismatch — certificate data does not match on-chain hash!');
+                    showResult(currentReport);
+                    btn.disabled = false; btn.textContent = 'Verify';
+                    return;
+                }
+
+                await delay(300);
+                if (currentReport.checks.issuerValid) {
+                    const short = currentReport.issuerAddress
+                        ? currentReport.issuerAddress.substring(0, 10) + '…'
+                        : '—';
+                    setStepState('vstep3', 'pass', `Issuer wallet: ${short} — valid Ethereum address ✅`);
+                } else {
+                    setStepState('vstep3', 'fail', 'Invalid issuer address on-chain');
+                    showResult(currentReport);
+                    btn.disabled = false; btn.textContent = 'Verify';
+                    return;
+                }
+
+                await delay(300);
+                if (currentReport.checks.networkValid) {
+                    const netLabel = currentReport.mode === 'ethereum'
+                        ? 'Confirmed on Ethereum Sepolia Testnet — backed by global validators ✅'
+                        : 'SHA-256 integrity confirmed — stored securely in local blockchain ✅';
+                    setStepState('vstep4', 'pass', netLabel);
+                } else {
+                    setStepState('vstep4', 'fail', currentReport.failureReason);
+                }
+
+                showResult(currentReport);
+
+                if (currentReport.valid && currentReport.certificate?.fileHash) {
+                    document.getElementById('fileVerifyCard').style.display = 'block';
+                    document.getElementById('storedFileHash').textContent = currentReport.certificate.fileHash;
+                }
+
+            } catch (err) {
+                currentReport = {
+                    valid: false,
+                    certificateId: certId,
+                    checks: { exists: false, certHashValid: false, issuerValid: false, networkValid: false },
+                    failureReason: 'Blockchain read error: ' + err.message,
+                    verifiedAt: new Date().toISOString()
+                };
+                setStepState('vstep1', 'fail', 'Blockchain read error');
+                showResult(currentReport);
+            }
+
+            btn.disabled = false;
+            btn.textContent = 'Verify';
+        }
+
+        function showResult(report) {
+            const el = document.getElementById('verifyResult');
+            el.style.display = 'block';
+
+            const etherscanAddrUrl = report.issuerAddress
+                ? `${window.ETHERSCAN_BASE}/address/${report.issuerAddress}`
+                : '#';
+
+            if (report.valid) {
+                const c = report.certificate;
+                el.innerHTML = `
+                <div class="verify-result">
+                    <div class="verify-result-header success">
+                        <div class="result-icon">✅</div>
+                        <div class="result-title valid">CERTIFICATE VALID</div>
+                        <div class="result-subtitle">Authentic, unmodified, and verified on the Ethereum blockchain.</div>
+                    </div>
+                    <div class="verify-result-body">
+                        <table class="cert-detail-table">
+                            <tr><td>Certificate ID</td><td><code style="font-family:var(--mono);font-size:0.8rem;color:var(--cyan-400)">${c.certificateId}</code></td></tr>
+                            <tr><td>Student Name</td><td>${c.studentName}</td></tr>
+                            <tr><td>Student ID</td><td>${c.studentId}</td></tr>
+                            <tr><td>Institution</td><td>${c.institution}</td></tr>
+                            <tr><td>Degree</td><td>${c.degree}</td></tr>
+                            <tr><td>Field of Study</td><td>${c.fieldOfStudy}</td></tr>
+                            <tr><td>Issue Date</td><td>${c.issueDate}</td></tr>
+                            ${c.gpa ? `<tr><td>CGPA</td><td>${c.gpa}</td></tr>` : ''}
+                            ${c.honors ? `<tr><td>Honors</td><td>${c.honors}</td></tr>` : ''}
+                            <tr><td>Issued By</td><td>${c.issuerName} — ${c.issuerTitle}</td></tr>
+                            <tr><td>Issuer Wallet</td><td><code style="font-family:var(--mono);font-size:0.7rem;color:#c084fc">${report.issuerAddress}</code></td></tr>
+                            <tr><td>Block Timestamp</td><td>${new Date(report.blockTimestamp).toLocaleString()}</td></tr>
+                            <tr><td>Certificate Hash</td><td><code style="font-family:var(--mono);font-size:0.7rem;color:var(--green-400);word-break:break-all">${c.certHash || '—'}</code></td></tr>
+                            ${c.fileHash ? `<tr><td>File Fingerprint</td><td><code style="font-family:var(--mono);font-size:0.7rem;color:var(--blue-400);word-break:break-all">${c.fileHash}</code></td></tr>` : ''}
+                            ${c.fileName ? `<tr><td>File Name</td><td>${c.fileName}</td></tr>` : ''}
+                            <tr><td>Verified At</td><td>${new Date(report.verifiedAt).toLocaleString()}</td></tr>
+                        </table>
+                        <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-top:1.5rem;">
+                            ${report.mode === 'ethereum' ? `<a class="etherscan-link" href="${etherscanAddrUrl}" target="_blank">🟣 View Issuer on Etherscan ↗</a>` : ''}
+                            ${report.mode === 'ethereum' ? `<a class="etherscan-link" href="${window.ETHERSCAN_BASE}/address/${window.CONTRACT_ADDRESS}" target="_blank">📜 View Contract ↗</a>` : '<span style="font-size:0.78rem;color:var(--text-muted)">💾 Stored in local blockchain — <button onclick="openSettings()" style="background:none;border:none;color:#60a5fa;cursor:pointer;font-size:inherit;">upgrade to Ethereum ↗</button></span>'}
+                            <button class="btn btn-secondary" onclick="location.href='dashboard.html'">📊 View in Explorer</button>
+                            <button class="btn btn-secondary" onclick="window.print()">🖨️ Print</button>
+                        </div>
+                    </div>
+                </div>`;
+            } else {
+                el.innerHTML = `
+                <div class="verify-result">
+                    <div class="verify-result-header error">
+                        <div class="result-icon">❌</div>
+                        <div class="result-title invalid">CERTIFICATE INVALID</div>
+                        <div class="result-subtitle">This certificate could not be authenticated on the Ethereum blockchain.</div>
+                    </div>
+                    <div class="verify-result-body">
+                        <div class="failure-reason-box">
+                            <strong>❌ Failure Reason:</strong>
+                            <p style="white-space:pre-wrap">${report.failureReason}</p>
+                        </div>
+                        <div style="margin-top:1.5rem;background:rgba(239,68,68,0.05);border:1px solid rgba(239,68,68,0.15);border-radius:var(--radius);padding:1.25rem;">
+                            <strong style="color:var(--red-400);display:block;margin-bottom:0.75rem;">⚠️ What this means:</strong>
+                            <ul style="list-style:none;display:flex;flex-direction:column;gap:0.5rem;">
+                                <li style="color:var(--text-secondary);font-size:0.88rem">• This certificate was never issued on the Ethereum blockchain</li>
+                                <li style="color:var(--text-secondary);font-size:0.88rem">• The Certificate ID may be incorrect or fabricated</li>
+                                <li style="color:var(--text-secondary);font-size:0.88rem">• Do NOT accept this certificate as genuine</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>`;
+            }
+
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        async function verifyFile(file) {
+            if (!file || !currentReport?.certificate?.fileHash) return;
+            const fileResultEl = document.getElementById('fileVerifyResult');
+            fileResultEl.style.display = 'block';
+            fileResultEl.className = 'file-verify-result';
+            fileResultEl.innerHTML = '⏳ Computing file SHA-256 fingerprint…';
+
+            const computedHash = await sha256File(file);
+            const storedHash = currentReport.certificate.fileHash;
+
+            if (computedHash === storedHash) {
+                fileResultEl.classList.add('match');
+                fileResultEl.innerHTML = `✅ FILE VERIFIED — This is the original, unmodified certificate document.<br>
+                <span style="font-size:0.78rem;font-weight:400;opacity:0.85">SHA-256 hashes match perfectly. Fingerprint is identical to what is recorded on Ethereum.</span>`;
+            } else {
+                fileResultEl.classList.add('mismatch');
+                fileResultEl.innerHTML = `❌ FILE MISMATCH — This is NOT the original document registered on-chain.<br>
+                <span style="font-size:0.78rem;font-weight:400;opacity:0.85">Computed: ${computedHash.substring(0, 32)}…<br>Stored on-chain: ${storedHash.substring(0, 32)}…</span>`;
+            }
+        }
+
+        async function checkChainIntegrity() {
+            const el = document.getElementById('integrityResult');
+            el.style.display = 'block';
+            el.innerHTML = '<p style="color:var(--text-muted)">⏳ Checking Ethereum contract…</p>';
+            const result = await validateChain();
+            el.innerHTML = result.valid
+                ? `<div class="integrity-result success">✅ <strong>Ethereum Contract REACHABLE</strong><br>${result.reason}</div>`
+                : `<div class="integrity-result error">❌ <strong>Contract Unreachable</strong><br>${result.reason}</div>`;
+        }
+
+        document.getElementById('certIdInput').addEventListener('keypress', e => {
+            if (e.key === 'Enter') startVerification();
+        });
+
+        window.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+
+</html>

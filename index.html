@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CertChain — Real Blockchain Academic Certificate System</title>
+    <meta name="description"
+        content="Blockchain-Based Secure Academic Certificate Verification on Ethereum Sepolia — real on-chain storage, MetaMask wallet, SHA-256 Hashing.">
+    <link rel="stylesheet" href="styles.css">
+    <!-- ethers.js v5 — Ethereum JavaScript library -->
+    <script src="https://unpkg.com/ethers@5.7.2/dist/ethers.umd.min.js" type="application/javascript"></script>
+    <script>
+        // Apply saved theme immediately to prevent flash
+        (function () {
+            const t = localStorage.getItem('certchain_theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', t);
+        })();
+    </script>
+    <style>
+        /* ── Wallet Connect Button ── */
+        .wallet-btn {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.4rem 0.9rem;
+            border-radius: 9999px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1.5px solid var(--blue-500);
+            background: rgba(59, 130, 246, 0.1);
+            color: var(--blue-400);
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .wallet-btn:hover {
+            background: rgba(59, 130, 246, 0.2);
+        }
+
+        .wallet-btn.connected {
+            border-color: var(--green-500, #22c55e);
+            background: rgba(34, 197, 94, 0.1);
+            color: var(--green-400, #4ade80);
+        }
+
+        .wallet-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--blue-400);
+            animation: pulse 2s infinite;
+        }
+
+        .wallet-btn.connected .wallet-dot {
+            background: var(--green-400, #4ade80);
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1
+            }
+
+            50% {
+                opacity: 0.4
+            }
+        }
+
+        /* ── Network Badge ── */
+        .network-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            background: rgba(168, 85, 247, 0.12);
+            color: #c084fc;
+            border: 1px solid rgba(168, 85, 247, 0.3);
+            margin-left: 0.5rem;
+        }
+
+        /* ── Etherscan Link style ── */
+        .etherscan-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            color: var(--blue-400);
+            font-size: 0.8rem;
+            text-decoration: none;
+            padding: 0.3rem 0.6rem;
+            border-radius: 0.4rem;
+            background: rgba(59, 130, 246, 0.08);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            transition: all 0.2s;
+        }
+
+        .etherscan-link:hover {
+            background: rgba(59, 130, 246, 0.18);
+        }
+
+        /* ── Setup Banner (shown when contract not deployed) ── */
+        .setup-banner {
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(239, 68, 68, 0.08));
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            border-radius: var(--radius, 0.75rem);
+            padding: 1.25rem 1.5rem;
+            margin: 1.5rem auto;
+            max-width: 900px;
+            display: none;
+        }
+
+        .setup-banner.show {
+            display: block;
+        }
+
+        .setup-banner h4 {
+            color: #fbbf24;
+            margin: 0 0 0.5rem;
+            font-size: 0.95rem;
+        }
+
+        .setup-banner p {
+            color: var(--text-secondary);
+            font-size: 0.83rem;
+            margin: 0.25rem 0;
+        }
+
+        .setup-steps {
+            margin: 0.75rem 0 0;
+            padding-left: 1.2rem;
+        }
+
+        .setup-steps li {
+            color: var(--text-secondary);
+            font-size: 0.82rem;
+            margin: 0.3rem 0;
+        }
+
+        .setup-steps code {
+            color: #fbbf24;
+            background: rgba(245, 158, 11, 0.1);
+            padding: 0.1rem 0.35rem;
+            border-radius: 0.25rem;
+        }
+    </style>
+</head>
+
+<body>
+
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="logo">🔗 CertChain</div>
+            <ul class="nav-links">
+                <li><a href="index.html" class="active">🏠 Home</a></li>
+                <li><a href="dashboard.html">📊 Explorer</a></li>
+                <li><a href="issue.html">📜 Issue</a></li>
+                <li><a href="verify.html">✅ Verify</a></li>
+                <li><a href="security.html">🔒 Security</a></li>
+            </ul>
+            <div style="display:flex;align-items:center;gap:0.5rem;">
+                <button class="wallet-btn" id="walletBtn" onclick="handleWalletConnect()">
+                    <span class="wallet-dot"></span>
+                    <span id="walletBtnText">Connect Wallet</span>
+                </button>
+                <button onclick="openSettings()" title="Setup contract address"
+                    style="padding:0.4rem 0.6rem;border-radius:0.5rem;border:1px solid var(--border);background:rgba(245,158,11,0.08);color:#fbbf24;cursor:pointer;font-size:0.85rem;transition:all 0.2s;"
+                    id="setupGearBtn">⚙️</button>
+                <button class="theme-toggle" id="themeToggleBtn" onclick="toggleTheme()"
+                    title="Toggle dark/light mode">🌙</button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Setup Banner (hidden since contract is always pre-configured) -->
+    <div class="setup-banner" id="setupBanner" style="display:none;"></div>
+
+    <section class="hero-section">
+        <div class="hero-badge">
+            ⛓️ Powered by Ethereum Sepolia · SHA-256 · Real On-Chain Storage
+            <span class="network-badge">🟣 Sepolia Testnet</span>
+        </div>
+
+        <h1 class="hero-title">
+            Blockchain-Based<br>
+            <span class="highlight">Academic Certificate</span><br>
+            Verification System
+        </h1>
+
+        <p class="hero-subtitle">
+            Every academic certificate is SHA-256 hashed and stored permanently on the
+            <strong>Ethereum blockchain</strong> — verified by thousands of nodes worldwide.
+            Forgery is mathematically and cryptographically impossible.
+        </p>
+
+        <div class="hero-buttons">
+            <button class="btn btn-primary" onclick="location.href='issue.html'">📜 Issue Certificate on
+                Blockchain</button>
+            <button class="btn btn-secondary" onclick="location.href='verify.html'">✅ Verify a Certificate</button>
+            <button class="btn btn-secondary" onclick="location.href='dashboard.html'">🔍 Blockchain Explorer</button>
+        </div>
+
+        <div class="live-chain" id="liveChainBanner">
+            <span class="chain-label">⛓ Ethereum Sepolia</span>
+            <div class="chain-blocks" id="chainBlocksDisplay">
+                <span class="mini-block genesis">Loading chain stats…</span>
+            </div>
+        </div>
+    </section>
+
+    <div class="features-grid">
+        <div class="feature-card animate-in">
+            <div class="feature-icon">🔐</div>
+            <h3>SHA-256 Cryptographic Hashing</h3>
+            <p>Every certificate is hashed using NIST-standard SHA-256. The hash is stored permanently on Ethereum — a
+                single character change produces a completely different hash, making tampering instantly detectable.</p>
+        </div>
+        <div class="feature-card animate-in" style="animation-delay:0.1s">
+            <div class="feature-icon">🦊</div>
+            <h3>MetaMask Wallet Signing</h3>
+            <p>Certificates are issued by signing a real Ethereum transaction with your MetaMask wallet. This proves the
+                issuer's identity cryptographically — no passwords, no central authority.</p>
+        </div>
+        <div class="feature-card animate-in" style="animation-delay:0.2s">
+            <div class="feature-icon">⛓️</div>
+            <h3>Ethereum Smart Contract</h3>
+            <p>A deployed Solidity smart contract holds all certificate records on-chain. Once written, data cannot be
+                deleted or altered — guaranteed by Ethereum's immutable ledger.</p>
+        </div>
+        <div class="feature-card animate-in" style="animation-delay:0.3s">
+            <div class="feature-icon">📁</div>
+            <h3>Certificate File Hashing</h3>
+            <p>Upload the actual certificate PDF or image. Its SHA-256 fingerprint is computed in-browser and stored
+                on-chain. Later, upload the same file to verify it hasn't been altered since issuance.</p>
+        </div>
+        <div class="feature-card animate-in" style="animation-delay:0.4s">
+            <div class="feature-icon">�</div>
+            <h3>Etherscan Verified</h3>
+            <p>Every issuance transaction is viewable on <a href="https://sepolia.etherscan.io" target="_blank"
+                    style="color:var(--blue-400)">Sepolia Etherscan</a>. Anyone in the world can independently verify a
+                certificate without trusting this website.</p>
+        </div>
+        <div class="feature-card animate-in" style="animation-delay:0.5s">
+            <div class="feature-icon">♾️</div>
+            <h3>Immutable Records</h3>
+            <p>Certificates on the blockchain are permanent. No delete, no update — once issued and confirmed, a
+                certificate exists forever in Ethereum's history, backed by a global network of validators.</p>
+        </div>
+    </div>
+
+    <div class="stats-section">
+        <h2 class="section-title" style="text-align:center;margin-bottom:2rem;">Live Blockchain Statistics</h2>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon">🎓</div>
+                <div class="stat-value" id="statCerts">—</div>
+                <div class="stat-label">Certificates On-Chain</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">⛓️</div>
+                <div class="stat-value" id="statBlock">—</div>
+                <div class="stat-label">Latest Block</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🟣</div>
+                <div class="stat-value" id="statNetwork">Sepolia</div>
+                <div class="stat-label">Network</div>
+            </div>
+
+        </div>
+        <div style="text-align:center;margin-top:1rem;">
+            <a class="etherscan-link" id="etherscanContractLink" href="https://sepolia.etherscan.io" target="_blank">
+                🔍 View Contract on Etherscan ↗
+            </a>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <p>🔗 <strong>CertChain</strong> — Real Ethereum Blockchain Academic Certificate Verification</p>
+        <p style="margin-top:0.5rem;">SHA-256 · Ethereum Sepolia Testnet · MetaMask · Solidity Smart Contract</p>
+        <p style="margin-top:0.5rem;">© 2026 CertChain — Powered by Real Blockchain Technology</p>
+    </footer>
+
+    <script src="blockchain-real.js"></script>
+    <script>
+        function toggleTheme() {
+            const html = document.documentElement;
+            const isDark = html.getAttribute('data-theme') !== 'light';
+            html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+            localStorage.setItem('certchain_theme', isDark ? 'light' : 'dark');
+            document.getElementById('themeToggleBtn').textContent = isDark ? '☀️' : '🌙';
+        }
+        window.addEventListener('DOMContentLoaded', () => {
+            const saved = localStorage.getItem('certchain_theme') || 'dark';
+            document.getElementById('themeToggleBtn').textContent = saved === 'light' ? '☀️' : '🌙';
+        });
+
+        async function handleWalletConnect() {
+            const btn = document.getElementById('walletBtn');
+            const txt = document.getElementById('walletBtnText');
+            try {
+                const account = await connectWallet();
+                btn.classList.add('connected');
+                txt.textContent = account.substring(0, 6) + '…' + account.substring(38);
+
+                // Show ETH balance in title attribute on hover
+                const balance = await getWalletBalance(account);
+                if (balance !== null) {
+                    btn.title = `⚽️ ${balance} SepoliaETH`;
+                }
+            } catch (err) {
+                alert('❌ ' + err.message);
+            }
+        }
+
+        // Check if already connected
+        async function checkWalletStatus() {
+            const account = await getConnectedAccount();
+            if (account) {
+                document.getElementById('walletBtn').classList.add('connected');
+                document.getElementById('walletBtnText').textContent =
+                    account.substring(0, 6) + '…' + account.substring(38);
+
+                // Show balance in tooltip
+                const balance = await getWalletBalance(account);
+                if (balance !== null) {
+                    document.getElementById('walletBtn').title = `⚽️ ${balance} SepoliaETH`;
+                }
+            }
+        }
+
+        (async () => {
+            await checkWalletStatus();
+
+            // floating badge is handled by blockchain-real.js automatically
+
+            // Load chain stats
+            try {
+                const stats = await getChainStats();
+                document.getElementById('statCerts').textContent = stats.certificateCount;
+                document.getElementById('statBlock').textContent =
+                    stats.blockNumber > 0 ? '#' + stats.blockNumber.toLocaleString() : '—';
+                document.getElementById('statNetwork').textContent = 'Sepolia';
+
+
+
+                if (stats.etherscanContractUrl) {
+                    document.getElementById('etherscanContractLink').href = stats.etherscanContractUrl;
+                }
+
+                // Live chain banner
+                const banner = document.getElementById('chainBlocksDisplay');
+                banner.innerHTML = `
+                    <span class="mini-block genesis">Contract: ${stats.contractAddress.substring(0, 10)}…</span>
+                    <span class="chain-arrow">→</span>
+                    <span class="mini-block">Block #${stats.blockNumber.toLocaleString()}</span>
+                    <span class="chain-arrow">→</span>
+                    <span class="mini-block">${stats.certificateCount} Cert${stats.certificateCount !== 1 ? 's' : ''} On-Chain</span>
+                `;
+            } catch (err) {
+                console.error('Failed to load stats:', err);
+                document.getElementById('chainBlocksDisplay').innerHTML =
+                    '<span class="mini-block" style="opacity:0.5">Connect MetaMask to load chain data</span>';
+            }
+        })();
+
+        // Listen for account changes
+        if (window.ethereum) {
+            window.ethereum.on('accountsChanged', (accounts) => {
+                if (accounts.length > 0) {
+                    document.getElementById('walletBtn').classList.add('connected');
+                    document.getElementById('walletBtnText').textContent =
+                        accounts[0].substring(0, 6) + '…' + accounts[0].substring(38);
+                } else {
+                    document.getElementById('walletBtn').classList.remove('connected');
+                    document.getElementById('walletBtnText').textContent = 'Connect Wallet';
+                }
+            });
+        }
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Issue Certificate — CertChain Blockchain</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://unpkg.com/ethers@5.7.2/dist/ethers.umd.min.js" type="application/javascript"></script>
+    <script>(function () { document.documentElement.setAttribute('data-theme', localStorage.getItem('certchain_theme') || 'dark'); })();</script>
+    <style>
+        .wallet-btn {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.4rem 0.9rem;
+            border-radius: 9999px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1.5px solid var(--blue-500);
+            background: rgba(59, 130, 246, 0.1);
+            color: var(--blue-400);
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .wallet-btn:hover {
+            background: rgba(59, 130, 246, 0.2);
+        }
+
+        .wallet-btn.connected {
+            border-color: #22c55e;
+            background: rgba(34, 197, 94, 0.1);
+            color: #4ade80;
+        }
+
+        .wallet-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--blue-400);
+            animation: pulse 2s infinite;
+        }
+
+        .wallet-btn.connected .wallet-dot {
+            background: #4ade80;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1
+            }
+
+            50% {
+                opacity: 0.4
+            }
+        }
+
+        /* Ethereum transaction status panel */
+        .eth-status-panel {
+            background: var(--bg-card, #1e293b);
+            border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+            border-radius: var(--radius, 0.75rem);
+            padding: 1.5rem;
+        }
+
+        .eth-waiting {
+            text-align: center;
+            padding: 2rem 1rem;
+        }
+
+        .eth-waiting-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            animation: bounce 1s infinite;
+        }
+
+        @keyframes bounce {
+
+            0%,
+            100% {
+                transform: translateY(0)
+            }
+
+            50% {
+                transform: translateY(-8px)
+            }
+        }
+
+        .eth-waiting h4 {
+            color: var(--blue-400, #60a5fa);
+            margin: 0 0 0.5rem;
+        }
+
+        .eth-waiting p {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+
+        .eth-confirming {
+            text-align: center;
+            padding: 1.5rem 1rem;
+        }
+
+        .spin-ring {
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(59, 130, 246, 0.1);
+            border-top-color: var(--blue-400, #60a5fa);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .eth-success {
+            padding: 1rem;
+        }
+
+        .eth-success-header {
+            text-align: center;
+            margin-bottom: 1.25rem;
+        }
+
+        .tx-hash-card {
+            background: var(--bg-dark, #0f172a);
+            border: 1px solid rgba(34, 197, 94, 0.2);
+            border-radius: 0.6rem;
+            padding: 0.9rem 1rem;
+            margin: 0.75rem 0;
+        }
+
+        .tx-hash-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-bottom: 0.3rem;
+        }
+
+        .tx-hash-value {
+            font-family: var(--mono, 'Courier New');
+            font-size: 0.72rem;
+            color: #4ade80;
+            word-break: break-all;
+        }
+
+        .etherscan-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            color: var(--blue-400);
+            font-size: 0.8rem;
+            text-decoration: none;
+            padding: 0.3rem 0.6rem;
+            border-radius: 0.4rem;
+            background: rgba(59, 130, 246, 0.08);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            transition: all 0.2s;
+            margin: 0.25rem;
+        }
+
+        .etherscan-link:hover {
+            background: rgba(59, 130, 246, 0.18);
+        }
+
+        .wallet-required-notice {
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            border-radius: 0.6rem;
+            padding: 1rem 1.25rem;
+            margin-bottom: 1.25rem;
+            font-size: 0.84rem;
+            color: #fbbf24;
+        }
+
+        .wallet-required-notice a {
+            color: #fb923c;
+        }
+
+        .setup-warning {
+            background: rgba(239, 68, 68, 0.08);
+            border: 1px solid rgba(239, 68, 68, 0.25);
+            border-radius: 0.6rem;
+            padding: 1rem 1.25rem;
+            margin-bottom: 1.25rem;
+            font-size: 0.83rem;
+            color: #f87171;
+        }
+    </style>
+</head>
+
+<body>
+
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="logo">🔗 CertChain</div>
+            <ul class="nav-links">
+                <li><a href="index.html">🏠 Home</a></li>
+                <li><a href="dashboard.html">📊 Explorer</a></li>
+                <li><a href="issue.html" class="active">📜 Issue</a></li>
+                <li><a href="verify.html">✅ Verify</a></li>
+                <li><a href="security.html">🔒 Security</a></li>
+            </ul>
+            <div style="display:flex;align-items:center;gap:0.5rem;">
+                <button class="wallet-btn" id="walletBtn" onclick="handleWalletConnect()">
+                    <span class="wallet-dot"></span>
+                    <span id="walletBtnText">Connect Wallet</span>
+                </button>
+                <button class="theme-toggle" id="themeToggleBtn" onclick="toggleTheme()"
+                    title="Toggle theme">🌙</button>
+                <button onclick="openSettings()" title="Setup contract address"
+                    style="padding:0.4rem 0.6rem;border-radius:0.5rem;border:1px solid var(--border);background:rgba(245,158,11,0.08);color:#fbbf24;cursor:pointer;font-size:0.85rem;transition:all 0.2s;">⚙️</button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container">
+        <div class="page-header">
+            <h1>Issue New Certificate</h1>
+            <p>Certificate data is SHA-256 hashed and permanently stored on the <strong>Ethereum Sepolia
+                    Blockchain</strong> via MetaMask transaction</p>
+        </div>
+
+        <!-- Contract not deployed warning -->
+        <div class="setup-warning" id="contractWarning" style="display:none;">
+            ⚠️ <strong>Smart contract not deployed.</strong> Follow the setup steps in <code>CertChain.sol</code> to
+            deploy to Sepolia, then update <code>CONTRACT_ADDRESS</code> in <code>blockchain-real.js</code>.
+        </div>
+
+        <div class="issue-layout">
+            <!-- LEFT: Form -->
+            <div>
+                <!-- Wallet required notice -->
+                <div class="wallet-required-notice" id="walletNotice">
+                    💾 <strong>Local Mode Active</strong> — certificates will be stored locally with SHA-256
+                    fingerprinting.
+                    To store on Ethereum, <a href="https://metamask.io" target="_blank">install MetaMask</a> and
+                    <a href="https://cloud.google.com/application/web3/faucet/ethereum/sepolia" target="_blank">get free
+                        Sepolia ETH</a>,
+                    then click <strong>Connect Wallet</strong>.
+                </div>
+
+                <form id="issueForm" class="certificate-form">
+
+                    <!-- Student Info -->
+                    <div class="form-section">
+                        <div class="form-section-title">👤 Student Information</div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="studentName">Full Name *</label>
+                                <input type="text" id="studentName" required placeholder="e.g. Arjun Sharma">
+                            </div>
+                            <div class="form-group">
+                                <label for="studentId">Student ID *</label>
+                                <input type="text" id="studentId" required placeholder="e.g. STU-2024-001">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="studentEmail">Email Address</label>
+                                <input type="email" id="studentEmail" placeholder="student@university.edu">
+                            </div>
+                            <div class="form-group">
+                                <label for="rollNumber">Roll Number</label>
+                                <input type="text" id="rollNumber" placeholder="e.g. 2021CS001">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Certificate Details -->
+                    <div class="form-section">
+                        <div class="form-section-title">🎓 Certificate Details</div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="institution">Institution Name *</label>
+                                <input type="text" id="institution" required placeholder="e.g. IIT Delhi">
+                            </div>
+                            <div class="form-group">
+                                <label for="degree">Degree / Award *</label>
+                                <select id="degree" required>
+                                    <option value="">Select Degree</option>
+                                    <option>Bachelor of Technology</option>
+                                    <option>Bachelor of Science</option>
+                                    <option>Bachelor of Commerce</option>
+                                    <option>Master of Technology</option>
+                                    <option>Master of Science</option>
+                                    <option>Master of Business Administration</option>
+                                    <option>PhD</option>
+                                    <option>Diploma</option>
+                                    <option>Certificate Course</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="fieldOfStudy">Field of Study *</label>
+                                <input type="text" id="fieldOfStudy" required placeholder="e.g. Computer Science">
+                            </div>
+                            <div class="form-group">
+                                <label for="issueDate">Issue Date *</label>
+                                <input type="date" id="issueDate" required>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="gpa">CGPA / GPA</label>
+                                <input type="text" id="gpa" placeholder="e.g. 9.2 / 10">
+                            </div>
+                            <div class="form-group">
+                                <label for="honors">Distinction / Honors</label>
+                                <input type="text" id="honors" placeholder="e.g. First Class with Distinction">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Issuer Info -->
+                    <div class="form-section">
+                        <div class="form-section-title">🏛️ Issuer Information</div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="issuerName">Issuer Name *</label>
+                                <input type="text" id="issuerName" required placeholder="e.g. Prof. Rajesh Kumar">
+                            </div>
+                            <div class="form-group">
+                                <label for="issuerTitle">Issuer Title *</label>
+                                <input type="text" id="issuerTitle" required placeholder="e.g. Registrar, IIT Delhi">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Certificate File Upload -->
+                    <div class="form-section">
+                        <div class="form-section-title">📁 Upload Certificate Document <span
+                                style="color:var(--text-muted);font-weight:400">(optional)</span></div>
+                        <p style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:0.75rem;">
+                            Upload the actual certificate PDF or image. Its <strong>SHA-256 fingerprint</strong> is
+                            computed in-browser and stored permanently on the blockchain. The file itself is not stored
+                            — only the cryptographic hash.
+                        </p>
+                        <div class="file-upload-zone" id="fileUploadZone">
+                            <input type="file" id="certFileInput" accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx"
+                                onchange="handleFileSelect(this.files[0])">
+                            <div class="file-upload-icon">📄</div>
+                            <div class="file-upload-label">
+                                <strong>Click to upload</strong> or drag and drop<br>
+                                <span style="font-size:0.78rem;color:var(--text-muted)">PDF, PNG, JPEG, WEBP, DOC
+                                    accepted</span>
+                            </div>
+                        </div>
+                        <div class="file-fingerprint" id="fileFingerprint" style="display:none;">
+                            <div class="fp-name" id="fpName"></div>
+                            <div class="fp-hash" id="fpHash"></div>
+                            <div class="fp-size" id="fpSize"></div>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" id="resetBtn">↺ Reset</button>
+                        <button type="submit" class="btn btn-primary" id="submitBtn">🔗 Issue on Ethereum</button>
+                    </div>
+                </form>
+
+                <!-- Inline result card (shown after issue) -->
+                <div id="issueResultCard"
+                    style="display:none;margin-top:1.5rem;background:var(--bg-card);border:1px solid rgba(34,197,94,0.3);border-radius:var(--radius);padding:1.5rem;">
+                    <div style="text-align:center;margin-bottom:1.25rem;">
+                        <div style="font-size:2.5rem;">✅</div>
+                        <div style="font-weight:800;color:#4ade80;font-size:1.1rem;margin-top:0.4rem;">Certificate
+                            Issued!</div>
+                        <div id="issueModeTag" style="color:var(--text-secondary);font-size:0.85rem;margin-top:0.2rem;">
+                        </div>
+                    </div>
+                    <div
+                        style="background:var(--bg-dark);border:1px solid rgba(34,197,94,0.2);border-radius:0.6rem;padding:0.9rem 1rem;margin-bottom:0.75rem;">
+                        <div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:0.3rem;">📜 Certificate ID
+                            (save this!)</div>
+                        <div id="issueCertIdDisplay" onclick="copyCertId()"
+                            style="font-family:var(--mono);font-size:0.8rem;color:var(--cyan-400);word-break:break-all;cursor:pointer;">
+                            —</div>
+                    </div>
+                    <div
+                        style="background:var(--bg-dark);border:1px solid rgba(34,197,94,0.2);border-radius:0.6rem;padding:0.9rem 1rem;margin-bottom:0.75rem;">
+                        <div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:0.3rem;">🔐 Certificate Hash
+                            (SHA-256)</div>
+                        <div id="issueCertHashDisplay"
+                            style="font-family:var(--mono);font-size:0.7rem;color:#4ade80;word-break:break-all;">—</div>
+                    </div>
+                    <div id="issueEtherscanLinks" style="display:none;margin-bottom:0.75rem;"></div>
+                    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;justify-content:center;">
+                        <button class="btn btn-secondary" onclick="copyCertId()">📋 Copy Cert ID</button>
+                        <button class="btn btn-primary" id="issueVerifyBtn">✅ Verify Now</button>
+                        <button class="btn btn-secondary" onclick="location.href='dashboard.html'">📊 Explorer</button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <footer class="footer">
+        <p>🔗 <strong>CertChain</strong> — Real Ethereum Blockchain Academic Certificate Verification System © 2026</p>
+    </footer>
+
+    <script src="blockchain-real.js"></script>
+    <script>
+        function toggleTheme() {
+            const html = document.documentElement;
+            const isDark = html.getAttribute('data-theme') !== 'light';
+            html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+            localStorage.setItem('certchain_theme', isDark ? 'light' : 'dark');
+            document.getElementById('themeToggleBtn').textContent = isDark ? '☀️' : '🌙';
+        }
+
+        let issuedCertId = null;
+        let selectedFileHash = null;
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            const saved = localStorage.getItem('certchain_theme') || 'dark';
+            document.getElementById('themeToggleBtn').textContent = saved === 'light' ? '☀️' : '🌙';
+            document.getElementById('issueDate').valueAsDate = new Date();
+
+            // Hide the setup warning (contract is now hardcoded)
+            const modeNote = document.getElementById('contractWarning');
+            if (modeNote) modeNote.style.display = 'none';
+
+            // Update submit button label and wallet notice based on mode
+            const submitBtn = document.getElementById('submitBtn');
+            const walletNotice = document.getElementById('walletNotice');
+
+            if (isContractDeployed()) {
+                submitBtn.textContent = '🔗 Issue on Ethereum';
+                if (isMetaMaskInstalled()) {
+                    const account = await getConnectedAccount();
+                    if (account) {
+                        document.getElementById('walletBtn').classList.add('connected');
+                        document.getElementById('walletBtnText').textContent = account.substring(0, 6) + '…' + account.substring(38);
+                        walletNotice.style.display = 'none';
+                    } else {
+                        walletNotice.innerHTML = '🦊 <strong>MetaMask detected!</strong> Click <strong>Connect Wallet</strong> above to issue certificates on the Ethereum blockchain. You need Sepolia ETH for gas fees.';
+                        walletNotice.style.background = 'rgba(168,85,247,0.08)';
+                        walletNotice.style.borderColor = 'rgba(168,85,247,0.3)';
+                        walletNotice.style.color = '#c084fc';
+                    }
+                } else {
+                    walletNotice.innerHTML = '⚙️ <strong>Backend Wallet Active!</strong> MetaMask not detected, but a contract is set. Certificate will be issued to Ethereum using the backend burner wallet.';
+                    walletNotice.style.background = 'rgba(168,85,247,0.08)';
+                    walletNotice.style.borderColor = 'rgba(168,85,247,0.3)';
+                    walletNotice.style.color = '#c084fc';
+                }
+            } else {
+                submitBtn.textContent = '💾 Issue Certificate (Local)';
+                walletNotice.innerHTML = '💾 <strong>Local Mode</strong> — certificates saved in your browser with SHA-256. <a href="https://metamask.io" target="_blank" style="color:#60a5fa;">Install MetaMask</a> and get <a href="https://cloud.google.com/application/web3/faucet/ethereum/sepolia" target="_blank" style="color:#60a5fa;">free Sepolia ETH</a> to store on Ethereum.';
+            }
+        });
+
+        async function handleWalletConnect() {
+            try {
+                const account = await connectWallet();
+                document.getElementById('walletBtn').classList.add('connected');
+                document.getElementById('walletBtnText').textContent = account.substring(0, 6) + '…' + account.substring(38);
+                document.getElementById('walletNotice').style.display = 'none';
+            } catch (err) {
+                alert('❌ ' + err.message);
+            }
+        }
+
+        // Reset
+        document.getElementById('resetBtn').addEventListener('click', () => {
+            document.getElementById('issueForm').reset();
+            document.getElementById('issueDate').valueAsDate = new Date();
+            document.getElementById('fileFingerprint').style.display = 'none';
+            selectedFileHash = null;
+            showIdle();
+        });
+
+        // Drag-and-drop
+        const zone = document.getElementById('fileUploadZone');
+        zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+        zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+        zone.addEventListener('drop', e => {
+            e.preventDefault();
+            zone.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file) {
+                document.getElementById('certFileInput').files = e.dataTransfer.files;
+                handleFileSelect(file);
+            }
+        });
+
+        async function handleFileSelect(file) {
+            if (!file) return;
+            const fp = document.getElementById('fileFingerprint');
+            fp.style.display = 'block';
+            document.getElementById('fpName').textContent = '⏳ Computing SHA-256 fingerprint…';
+            document.getElementById('fpHash').textContent = '';
+            document.getElementById('fpSize').textContent = '';
+
+            selectedFileHash = await sha256File(file);
+
+            document.getElementById('fpName').innerHTML = `📄 <strong>${file.name}</strong>`;
+            document.getElementById('fpHash').textContent = selectedFileHash;
+            document.getElementById('fpSize').textContent = `Size: ${(file.size / 1024).toFixed(1)} KB | Type: ${file.type || 'unknown'}`;
+            zone.querySelector('.file-upload-icon').textContent = '✅';
+            zone.querySelector('.file-upload-label').innerHTML = `<strong style="color:var(--green-400)">${file.name}</strong><br><span style="font-size:0.78rem;color:var(--text-muted)">File fingerprinted. Change file to re-upload.</span>`;
+        }
+
+        function showIdle() {
+            // nothing to reset visually in the simplified layout
+        }
+        function showWaiting() {
+            // button text is already updated by the caller
+        }
+        function showConfirming(txHash) {
+            // button text updated by caller
+        }
+        function showSuccess(result) {
+            issuedCertId = result.certId;
+            const card = document.getElementById('issueResultCard');
+            card.style.display = 'block';
+            document.getElementById('issueCertIdDisplay').textContent = result.certId;
+            document.getElementById('issueCertHashDisplay').textContent = result.certHash || '—';
+            document.getElementById('issueModeTag').textContent =
+                result.mode === 'ethereum' ? '🔗 Stored on Ethereum Sepolia' : '💾 Stored Locally (SHA-256 verified)';
+
+            const linksEl = document.getElementById('issueEtherscanLinks');
+            if (result.etherscanTxUrl) {
+                linksEl.style.display = 'block';
+                linksEl.innerHTML = `
+                    <a class="etherscan-link" href="${result.etherscanTxUrl}" target="_blank" style="display:inline-flex;align-items:center;gap:0.35rem;color:var(--blue-400);font-size:0.8rem;text-decoration:none;padding:0.3rem 0.6rem;border-radius:0.4rem;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);margin:0.25rem;">🔍 View on Etherscan ↗</a>
+                    ${result.etherscanBlockUrl ? `<a class="etherscan-link" href="${result.etherscanBlockUrl}" target="_blank" style="display:inline-flex;align-items:center;gap:0.35rem;color:var(--blue-400);font-size:0.8rem;text-decoration:none;padding:0.3rem 0.6rem;border-radius:0.4rem;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);margin:0.25rem;">📦 View Block ↗</a>` : ''}
+                `;
+            }
+            document.getElementById('issueVerifyBtn').onclick = () =>
+                location.href = `verify.html?id=${result.certId}`;
+            card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function copyCertId() {
+            if (!issuedCertId) return;
+            navigator.clipboard.writeText(issuedCertId).catch(() => { });
+            const el = document.getElementById('issueCertIdDisplay');
+            const prev = el.textContent;
+            el.textContent = '✅ Copied!';
+            setTimeout(() => el.textContent = prev, 1500);
+        }
+
+        // Form submit
+        document.getElementById('issueForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.disabled = true;
+
+            // Determine mode upfront
+            const hasMetaMask = isMetaMaskInstalled();
+            const ethMode = hasMetaMask && isContractDeployed();
+
+            try {
+                const certData = {
+                    studentName: document.getElementById('studentName').value.trim(),
+                    studentId: document.getElementById('studentId').value.trim(),
+                    studentEmail: document.getElementById('studentEmail').value.trim() || null,
+                    rollNumber: document.getElementById('rollNumber').value.trim() || null,
+                    institution: document.getElementById('institution').value.trim(),
+                    degree: document.getElementById('degree').value,
+                    fieldOfStudy: document.getElementById('fieldOfStudy').value.trim(),
+                    issueDate: document.getElementById('issueDate').value,
+                    gpa: document.getElementById('gpa').value.trim() || null,
+                    honors: document.getElementById('honors').value.trim() || null,
+                    issuerName: document.getElementById('issuerName').value.trim(),
+                    issuerTitle: document.getElementById('issuerTitle').value.trim()
+                };
+
+                if (selectedFileHash) {
+                    const file = document.getElementById('certFileInput').files[0];
+                    certData.fileHash = selectedFileHash;
+                    certData.fileName = file ? file.name : null;
+                    certData.fileSize = file ? file.size : null;
+                    certData.fileType = file ? file.type : null;
+                }
+
+                if (ethMode) {
+                    // ── ETHEREUM MODE ──
+                    if (isMetaMaskInstalled()) {
+                        let account = await getConnectedAccount();
+                        if (!account) {
+                            submitBtn.textContent = '🦊 Connecting wallet…';
+                            account = await connectWallet();
+                            document.getElementById('walletBtn').classList.add('connected');
+                            document.getElementById('walletBtnText').textContent =
+                                account.substring(0, 6) + '…' + account.substring(38);
+                            document.getElementById('walletNotice').style.display = 'none';
+                        }
+                        submitBtn.textContent = '🦊 Confirm in MetaMask…';
+                    } else {
+                        submitBtn.textContent = '⚙️ Issuing on-chain (burner wallet)…';
+                    }
+                    showWaiting();
+
+                    // 3. issueCertificateOnChain triggers MetaMask popup.
+                    //    The onTxSent callback fires as soon as MetaMask confirms,
+                    //    BEFORE the block is mined — so we can immediately show
+                    //    the "confirming on-chain" spinner with the tx hash.
+                    const result = await issueCertificateOnChain(certData, (txHash) => {
+                        showConfirming(txHash);
+                        submitBtn.textContent = '⛓️ Mining block…';
+                    });
+
+                    // 4. Block confirmed!
+                    showSuccess(result);
+
+                } else {
+                    // ── LOCAL MODE ──
+                    submitBtn.textContent = '⏳ Saving…';
+                    showWaiting();
+
+                    const result = await issueCertificateOnChain(certData);
+                    showSuccess(result);
+                }
+
+                // Reset form
+                document.getElementById('issueForm').reset();
+                document.getElementById('issueDate').valueAsDate = new Date();
+                document.getElementById('fileFingerprint').style.display = 'none';
+                selectedFileHash = null;
+
+            } catch (err) {
+                console.error('Issue error:', err);
+                showIdle();
+                if (err.code === 4001) {
+                    alert('❌ Transaction cancelled. You rejected the MetaMask popup.');
+                } else if (err.message && err.message.includes('MetaMask')) {
+                    alert('🦊 ' + err.message);
+                } else if (err.message && err.message.includes('network')) {
+                    alert('🌐 Network error: Please make sure MetaMask is on the Sepolia network.');
+                } else {
+                    alert('❌ Error: ' + (err.reason || err.message || 'Unknown error'));
+                }
+            }
+
+            submitBtn.disabled = false;
+            submitBtn.textContent = (isMetaMaskInstalled() && isContractDeployed()) ? '🔗 Issue on Ethereum' : '💾 Issue Certificate';
+        });
+
+        if (window.ethereum) {
+            window.ethereum.on('accountsChanged', (accounts) => {
+                if (accounts.length > 0) {
+                    document.getElementById('walletBtn').classList.add('connected');
+                    document.getElementById('walletBtnText').textContent = accounts[0].substring(0, 6) + '…' + accounts[0].substring(38);
+                    document.getElementById('walletNotice').style.display = 'none';
+                } else {
+                    document.getElementById('walletBtn').classList.remove('connected');
+                    document.getElementById('walletBtnText').textContent = 'Connect Wallet';
+                }
+            });
+        }
+    </script>
+</body>
+
+</html>

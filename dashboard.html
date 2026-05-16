@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blockchain Explorer — CertChain</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://unpkg.com/ethers@5.7.2/dist/ethers.umd.min.js" type="application/javascript"></script>
+    <script>(function () { document.documentElement.setAttribute('data-theme', localStorage.getItem('certchain_theme') || 'dark'); })();</script>
+    <style>
+        .wallet-btn {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.4rem 0.9rem;
+            border-radius: 9999px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1.5px solid var(--blue-500);
+            background: rgba(59, 130, 246, 0.1);
+            color: var(--blue-400);
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .wallet-btn:hover {
+            background: rgba(59, 130, 246, 0.2);
+        }
+
+        .wallet-btn.connected {
+            border-color: #22c55e;
+            background: rgba(34, 197, 94, 0.1);
+            color: #4ade80;
+        }
+
+        .wallet-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--blue-400);
+            animation: pulse 2s infinite;
+        }
+
+        .wallet-btn.connected .wallet-dot {
+            background: #4ade80;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1
+            }
+
+            50% {
+                opacity: 0.4
+            }
+        }
+
+        .etherscan-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            color: var(--blue-400);
+            font-size: 0.78rem;
+            text-decoration: none;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.35rem;
+            background: rgba(59, 130, 246, 0.08);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            transition: all 0.2s;
+        }
+
+        .etherscan-link:hover {
+            background: rgba(59, 130, 246, 0.18);
+        }
+
+        .loading-certs {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: var(--text-muted);
+        }
+
+        .loading-spinner {
+            width: 36px;
+            height: 36px;
+            margin: 0 auto 1rem;
+            border: 3px solid rgba(59, 130, 246, 0.1);
+            border-top-color: var(--blue-400, #60a5fa);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .network-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            background: rgba(168, 85, 247, 0.1);
+            color: #c084fc;
+            border: 1px solid rgba(168, 85, 247, 0.25);
+            border-radius: 9999px;
+            padding: 0.15rem 0.6rem;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        .cert-issuer-addr {
+            font-family: var(--mono, 'Courier New');
+            font-size: 0.68rem;
+            color: #a78bfa;
+            word-break: break-all;
+            margin-top: 0.25rem;
+        }
+    </style>
+</head>
+
+<body>
+
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="logo">🔗 CertChain</div>
+            <ul class="nav-links">
+                <li><a href="index.html">🏠 Home</a></li>
+                <li><a href="dashboard.html" class="active">📊 Explorer</a></li>
+                <li><a href="issue.html">📜 Issue</a></li>
+                <li><a href="verify.html">✅ Verify</a></li>
+                <li><a href="security.html">🔒 Security</a></li>
+            </ul>
+            <div style="display:flex;align-items:center;gap:0.5rem;">
+                <button class="wallet-btn" id="walletBtn" onclick="handleWalletConnect()">
+                    <span class="wallet-dot"></span>
+                    <span id="walletBtnText">Connect Wallet</span>
+                </button>
+                <button class="theme-toggle" id="themeToggleBtn" onclick="toggleTheme()"
+                    title="Toggle theme">🌙</button>
+                <button onclick="openSettings()" title="Setup contract address"
+                    style="padding:0.4rem 0.6rem;border-radius:0.5rem;border:1px solid var(--border);background:rgba(245,158,11,0.08);color:#fbbf24;cursor:pointer;font-size:0.85rem;transition:all 0.2s;">⚙️</button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container">
+        <div class="page-header">
+            <h1>Blockchain Explorer</h1>
+            <p>Inspect every certificate recorded on the <span class="network-tag">🟣 Ethereum Sepolia</span> blockchain
+                via our smart contract</p>
+        </div>
+
+        <!-- Chain status bar -->
+        <div class="chain-status-bar" id="chainStatusBar">
+            <div class="csb-item">
+                <div class="csb-icon">🎓</div>
+                <div class="csb-value" id="sbCerts">—</div>
+                <div class="csb-label">Certificates On-Chain</div>
+            </div>
+            <div class="csb-item">
+                <div class="csb-icon">⛓️</div>
+                <div class="csb-value" id="sbBlocks">—</div>
+                <div class="csb-label">Latest Block</div>
+            </div>
+            <div class="csb-item">
+                <div class="csb-icon">🟣</div>
+                <div class="csb-value" id="sbNetwork">Sepolia</div>
+                <div class="csb-label">Network</div>
+            </div>
+            <div class="csb-item" id="sbValidityItem">
+                <div class="csb-icon">🛡️</div>
+                <div class="csb-value" id="sbValidity">—</div>
+                <div class="csb-label">Contract Status</div>
+            </div>
+        </div>
+
+        <!-- Contract Etherscan link -->
+        <div style="text-align:center;margin:1rem 0 1.5rem;">
+            <a class="etherscan-link" id="contractEtherscanLink" href="https://sepolia.etherscan.io" target="_blank"
+                style="font-size:0.85rem;padding:0.4rem 0.8rem;">
+                🔍 View Smart Contract on Etherscan ↗
+            </a>
+        </div>
+
+        <!-- Certificates grid -->
+        <div class="section-title-row">
+            <h2 class="section-title">🎓 Certificates On Ethereum</h2>
+            <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
+                <input type="text" id="searchInput" class="search-input"
+                    placeholder="🔍 Search by name, ID, institution…" style="min-width:260px;">
+                <button class="btn btn-primary" onclick="location.href='issue.html'">+ Issue New</button>
+            </div>
+        </div>
+
+        <div class="certificates-grid" id="certificatesGrid">
+            <div class="loading-certs" id="loadingIndicator">
+                <div class="loading-spinner"></div>
+                <p>Loading certificates from Ethereum Sepolia…</p>
+                <p style="font-size:0.8rem;opacity:0.6">Reading from smart contract — no gas required</p>
+            </div>
+        </div>
+
+        <!-- On-chain explorer info -->
+        <div class="blockchain-explorer">
+            <div class="explorer-header">
+                <h2 class="explorer-title">⛓️ Ethereum Contract Explorer</h2>
+                <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
+                    <button class="btn btn-secondary btn-sm" onclick="runValidation()">🛡️ Check Contract</button>
+                    <button class="btn btn-secondary btn-sm" onclick="refreshCerts()">🔄 Refresh</button>
+                </div>
+            </div>
+
+            <div id="validationResult" style="margin-bottom:1rem;display:none;"></div>
+
+            <!-- Smart contract info card -->
+            <div class="block-card expanded" style="margin-top:0;">
+                <div class="block-header-bar">
+                    <div class="block-index-badge">
+                        <span class="block-num">📜 Smart Contract</span>
+                        <span class="genesis-tag">SEPOLIA</span>
+                        <span class="block-type">CertChain.sol</span>
+                    </div>
+                    <div class="block-header-meta">
+                        <span class="block-time">🟣 Ethereum Sepolia Testnet</span>
+                        <span class="block-valid-badge valid">✅ Deployed</span>
+                    </div>
+                </div>
+                <div class="block-body" id="contractInfoBody">
+                    <div class="block-fields">
+                        <div class="bf-item">
+                            <div class="bf-label">📍 Contract Address</div>
+                            <div class="bf-hash" id="contractAddrDisplay">Loading…</div>
+                        </div>
+                        <div class="bf-item">
+                            <div class="bf-label">🌐 Network</div>
+                            <div class="bf-value">Ethereum Sepolia Testnet (ChainID: 11155111)</div>
+                        </div>
+                        <div class="bf-item">
+                            <div class="bf-label">🔧 Consensus</div>
+                            <div class="bf-value">Proof-of-Stake — secured by global Ethereum validators</div>
+                        </div>
+                        <div class="bf-item">
+                            <div class="bf-label">📦 Latest Ethereum Block</div>
+                            <div class="bf-value" id="latestBlockDisplay">—</div>
+                        </div>
+                        <div class="bf-item">
+                            <div class="bf-label">🔍 Block Explorer</div>
+                            <div class="bf-value">
+                                <a class="etherscan-link" id="etherscanContractLink2"
+                                    href="https://sepolia.etherscan.io" target="_blank">
+                                    View on Sepolia Etherscan ↗
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="block-data-section">
+                        <div class="block-data-title">ℹ️ About this Explorer</div>
+                        <div class="cert-payload">
+                            <p style="font-size:0.83rem;color:var(--text-secondary);line-height:1.6;">
+                                Unlike the previous localStorage-based simulation, all certificates shown here are
+                                stored
+                                <strong>permanently on the Ethereum blockchain</strong> via a Solidity smart contract.
+                                Every record is backed by an immutable on-chain transaction that anyone can verify on
+                                Etherscan.
+                                The blockchain's integrity is guaranteed by Ethereum's global Proof-of-Stake consensus —
+                                not by this website.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <p>🔗 <strong>CertChain</strong> — Real Ethereum Blockchain Academic Certificate Verification System © 2026</p>
+    </footer>
+
+    <script src="blockchain-real.js"></script>
+    <script>
+        function toggleTheme() {
+            const html = document.documentElement;
+            const isDark = html.getAttribute('data-theme') !== 'light';
+            html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+            localStorage.setItem('certchain_theme', isDark ? 'light' : 'dark');
+            document.getElementById('themeToggleBtn').textContent = isDark ? '☀️' : '🌙';
+        }
+
+        let allCerts = [];
+
+        async function handleWalletConnect() {
+            try {
+                const account = await connectWallet();
+                document.getElementById('walletBtn').classList.add('connected');
+                document.getElementById('walletBtnText').textContent = account.substring(0, 6) + '…' + account.substring(38);
+            } catch (err) { alert('❌ ' + err.message); }
+        }
+
+        async function init() {
+            const saved = localStorage.getItem('certchain_theme') || 'dark';
+            document.getElementById('themeToggleBtn').textContent = saved === 'light' ? '☀️' : '🌙';
+
+            const account = await getConnectedAccount();
+            if (account) {
+                document.getElementById('walletBtn').classList.add('connected');
+                document.getElementById('walletBtnText').textContent = account.substring(0, 6) + '…' + account.substring(38);
+            }
+
+            await updateStats();
+            await loadCertificates();
+        }
+
+        async function updateStats() {
+            try {
+                const stats = await getChainStats();
+                document.getElementById('sbCerts').textContent = stats.certificateCount;
+                document.getElementById('sbBlocks').textContent = stats.blockNumber > 0 ? '#' + stats.blockNumber.toLocaleString() : '—';
+                document.getElementById('sbNetwork').textContent = 'Sepolia';
+
+                const validEl = document.getElementById('sbValidity');
+                const item = document.getElementById('sbValidityItem');
+                if (stats.isDeployed) {
+                    validEl.textContent = '✅ Live';
+                    item.classList.add('csb-valid');
+                } else {
+                    validEl.textContent = '⚠️ Setup';
+                    item.classList.add('csb-invalid');
+                }
+
+                // Contract info
+                document.getElementById('contractAddrDisplay').textContent = stats.contractAddress;
+                document.getElementById('latestBlockDisplay').textContent = '#' + stats.blockNumber.toLocaleString();
+                document.getElementById('contractEtherscanLink').href = stats.etherscanContractUrl;
+                document.getElementById('etherscanContractLink2').href = stats.etherscanContractUrl;
+            } catch (err) {
+                console.error('Stats error:', err);
+            }
+        }
+
+        async function loadCertificates(search = '') {
+            const grid = document.getElementById('certificatesGrid');
+            if (allCerts.length === 0) {
+                grid.innerHTML = '<div class="loading-certs" id="loadingIndicator"><div class="loading-spinner"></div><p>Loading certificates from Ethereum Sepolia…</p></div>';
+                try {
+                    allCerts = await getAllCertificatesFromChain();
+                } catch (err) {
+                    grid.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><h3>Could not load certificates</h3><p>${err.message}</p></div>`;
+                    return;
+                }
+            }
+
+            renderCertificates(search);
+        }
+
+        function renderCertificates(search = '') {
+            const grid = document.getElementById('certificatesGrid');
+            const filtered = allCerts.filter(({ certificate: c }) => {
+                if (!search) return true;
+                const q = search.toLowerCase();
+                return (c.studentName || '').toLowerCase().includes(q)
+                    || (c.certificateId || '').toLowerCase().includes(q)
+                    || (c.institution || '').toLowerCase().includes(q)
+                    || (c.studentId || '').toLowerCase().includes(q);
+            });
+
+            if (filtered.length === 0) {
+                grid.innerHTML = `<div class="empty-state">
+                    <div class="empty-icon">${search ? '🔍' : '📭'}</div>
+                    <h3>${search ? 'No matching certificates' : 'No certificates on-chain yet'}</h3>
+                    <p>${search ? 'Try a different search term.' : 'Issue your first certificate to the Ethereum blockchain.'}</p>
+                    ${!search ? '<a href="issue.html" class="btn btn-primary" style="margin-top:1rem">📜 Issue Certificate on Ethereum</a>' : ''}
+                </div>`;
+                return;
+            }
+
+            grid.innerHTML = filtered.map(({ certificate: c, issuer, timestamp, mode }) => {
+                const isEth = mode === 'ethereum';
+                const issuerShort = issuer && issuer !== 'Local'
+                    ? issuer.substring(0, 8) + '…' + issuer.substring(34)
+                    : issuer || '—';
+                const etherscanAddrUrl = isEth && issuer ? `${window.ETHERSCAN_BASE}/address/${issuer}` : '#';
+                const issuedDate = timestamp ? new Date(timestamp).toLocaleString() : (c.issueDate || '—');
+                const badge = isEth
+                    ? '✅ On Ethereum'
+                    : '💾 Local';
+                return `
+                <div class="certificate-card">
+                    <div class="cert-header">
+                        <span class="cert-badge">${c.degree || 'Certificate'}</span>
+                        <span class="cert-verified">${badge}</span>
+                    </div>
+                    <h3>${c.studentName || '—'}</h3>
+                    <p class="cert-detail"><strong>Institution:</strong> ${c.institution || '—'}</p>
+                    <p class="cert-detail"><strong>Field:</strong> ${c.fieldOfStudy || '—'}</p>
+                    <p class="cert-detail"><strong>Issue Date:</strong> ${c.issueDate || '—'}</p>
+                    ${c.gpa ? `<p class="cert-detail"><strong>CGPA:</strong> ${c.gpa}</p>` : ''}
+                    ${c.fileHash ? `<p class="cert-detail"><strong>File Hash:</strong> <code>${c.fileHash.substring(0, 16)}…</code></p>` : ''}
+                    <p class="cert-detail"><strong>Stored at:</strong> ${issuedDate}</p>
+                    <p class="cert-detail"><strong>Issuer:</strong>
+                        ${isEth
+                        ? `<a href="${etherscanAddrUrl}" target="_blank" class="etherscan-link" style="margin-top:0.2rem;font-size:0.68rem;">${issuerShort} ↗</a>`
+                        : `<span style="font-size:0.8rem;color:var(--text-secondary)">${issuerShort}</span>`
+                    }
+                    </p>
+                    <p class="cert-detail"><strong>Cert ID:</strong> <code>${c.certificateId || '—'}</code></p>
+                    <div class="cert-card-footer">
+                        <button class="btn btn-sm btn-secondary" onclick="location.href='verify.html?id=${c.certificateId}'">✅ Verify</button>
+                        <button class="btn btn-sm btn-secondary" onclick="copyId('${c.certificateId}',this)">📋 Copy ID</button>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function copyId(id, btn) {
+            navigator.clipboard.writeText(id).catch(() => { });
+            const orig = btn.textContent;
+            btn.textContent = '✅ Copied!';
+            setTimeout(() => btn.textContent = orig, 1500);
+        }
+
+        async function refreshCerts() {
+            allCerts = [];
+            await loadCertificates();
+            await updateStats();
+        }
+
+        async function runValidation() {
+            const el = document.getElementById('validationResult');
+            el.style.display = 'block';
+            el.innerHTML = '<p style="color:var(--text-muted)">⏳ Checking Ethereum contract…</p>';
+            const result = await validateChain();
+            el.innerHTML = result.valid
+                ? `<div class="integrity-result success">✅ <strong>Ethereum Contract LIVE</strong> — ${result.reason}</div>`
+                : `<div class="integrity-result error">❌ <strong>Contract Unreachable</strong> — ${result.reason}</div>`;
+        }
+
+        document.getElementById('searchInput').addEventListener('input', e => renderCertificates(e.target.value));
+        window.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+
+</html>
